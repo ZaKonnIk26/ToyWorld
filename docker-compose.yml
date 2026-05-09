@@ -1,0 +1,55 @@
+name: toyworld
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: toyworld-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: toyworld
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - toyworld_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d toyworld"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - toyworld-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: toyworld-image
+    container_name: toyworld-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=toyworld;Username=postgres;Password=postgres"
+    ports:
+      - "8003:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - toyworld-net
+
+volumes:
+  toyworld_data:
+    driver: local
+
+networks:
+  toyworld-net:
+    driver: bridge

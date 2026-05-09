@@ -1,0 +1,119 @@
+@page "/checkout"
+@rendermode InteractiveServer
+@using FluentValidation
+@using ToyWorld.Validators
+@inject ICartService CartService
+@inject IOrderService OrderService
+@inject ICurrentUserService CurrentUser
+@inject IValidator<CheckoutModel> Validator
+@inject NavigationManager Nav
+
+<PageTitle>Оформление заказа — ToyWorld</PageTitle>
+
+<h1 class="mb-4"><i class="bi bi-credit-card"></i> Оформление заказа</h1>
+
+@if (total == 0)
+{
+    <div class="alert alert-warning">Корзина пуста. <a href="/products">Перейти к товарам</a>.</div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Данные для доставки</h5>
+
+                    <div class="mb-3">
+                        <label class="form-label">ФИО *</label>
+                        <input class="form-control" @bind="model.FullName" />
+                        @if (errors.ContainsKey(nameof(model.FullName)))
+                        { <div class="text-danger small">@errors[nameof(model.FullName)]</div> }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Email *</label>
+                        <input class="form-control" @bind="model.Email" />
+                        @if (errors.ContainsKey(nameof(model.Email)))
+                        { <div class="text-danger small">@errors[nameof(model.Email)]</div> }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Телефон</label>
+                        <input class="form-control" @bind="model.Phone" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Адрес доставки *</label>
+                        <textarea class="form-control" rows="3" @bind="model.ShippingAddress"></textarea>
+                        @if (errors.ContainsKey(nameof(model.ShippingAddress)))
+                        { <div class="text-danger small">@errors[nameof(model.ShippingAddress)]</div> }
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(error))
+                    {
+                        <div class="alert alert-danger">@error</div>
+                    }
+
+                    <button class="btn btn-success btn-lg w-100" @onclick="Submit" disabled="@submitting">
+                        @(submitting ? "Обработка..." : "Подтвердить заказ")
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Ваш заказ</h5>
+                    <p class="mb-1">Позиций: <strong>@itemsCount</strong></p>
+                    <hr />
+                    <h4 class="text-primary">Итого: @total.ToString("N0") ₽</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private CheckoutModel model = new();
+    private Dictionary<string, string> errors = new();
+    private string? error;
+    private decimal total;
+    private int itemsCount;
+    private int customerId;
+    private bool submitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var customer = await CurrentUser.GetOrCreateGuestKidAsync();
+        customerId = customer.Id;
+        var items = (await CartService.GetCartAsync(customerId)).ToList();
+        itemsCount = items.Sum(i => i.Quantity);
+        total = await CartService.GetTotalAsync(customerId);
+    }
+
+    private async Task Submit()
+    {
+        errors.Clear();
+        error = null;
+        var result = await Validator.ValidateAsync(model);
+        if (!result.IsValid)
+        {
+            foreach (var f in result.Errors)
+                errors[f.PropertyName] = f.ErrorMessage;
+            return;
+        }
+
+        submitting = true;
+        try
+        {
+            var order = await OrderService.CreateFromCartAsync(customerId, model.ShippingAddress);
+            Nav.NavigateTo($"/orders/{order.Id}");
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            submitting = false;
+        }
+    }
+}

@@ -1,0 +1,9 @@
+@inherits LayoutComponentBase
+
+<div class="page d-flex flex-column min-vh-100">
+    <NavMenu />
+    <main class="flex-grow-1"><div class="container py-4">@Body</div></main>
+    <footer class="tw-footer text-white-50 py-3 mt-auto">
+        <div class="container text-center"><small>&copy; @DateTime.Now.Year ToyWorld — детство должно быть ярким!</small></div>
+    </footer>
+</div>

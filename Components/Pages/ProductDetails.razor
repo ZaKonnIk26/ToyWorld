@@ -1,0 +1,79 @@
+@page "/products/{Id:int}"
+@rendermode InteractiveServer
+@inject IProductService ProductService
+@inject ICartService CartService
+@inject ICurrentUserService CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>@(product?.Name ?? "Товар") — ToyWorld</PageTitle>
+
+@if (product == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/products">Товары</a></li>
+            <li class="breadcrumb-item active">@product.Name</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-md-5">
+            @if (!string.IsNullOrEmpty(product.ImageUrl))
+            {
+                <img src="@product.ImageUrl" class="img-fluid rounded shadow-sm" alt="@product.Name" />
+            }
+        </div>
+        <div class="col-md-7">
+            <h1>@product.Name</h1>
+            <p class="text-muted">Категория: @product.Category?.Name</p>
+            <h3 class="text-primary mb-3">@product.Price.ToString("N0") ₽</h3>
+            <p>@product.Description</p>
+            <p><strong>В наличии:</strong> @product.Stock шт.</p>
+
+            @if (product.Details != null)
+            {
+                <div class="card mt-3">
+                    <div class="card-header">Характеристики</div>
+                    <ul class="list-group list-group-flush">
+                        @if (!string.IsNullOrEmpty(product.Details.Manufacturer))
+                        { <li class="list-group-item"><strong>Производитель:</strong> @product.Details.Manufacturer</li> }
+                        @if (!string.IsNullOrEmpty(product.Details.CountryOfOrigin))
+                        { <li class="list-group-item"><strong>Страна:</strong> @product.Details.CountryOfOrigin</li> }
+                        @if (product.Details.Weight.HasValue)
+                        { <li class="list-group-item"><strong>Вес:</strong> @product.Details.Weight кг</li> }
+                        @if (!string.IsNullOrEmpty(product.Details.Dimensions))
+                        { <li class="list-group-item"><strong>Размеры:</strong> @product.Details.Dimensions</li> }
+                        @if (product.Details.WarrantyMonths > 0)
+                        { <li class="list-group-item"><strong>Гарантия:</strong> @product.Details.WarrantyMonths мес.</li> }
+                    </ul>
+                </div>
+            }
+
+            <button class="btn btn-primary btn-lg mt-4" @onclick="TossToBasket" disabled="@(product.Stock == 0)">
+                <i class="bi bi-cart-plus"></i> Добавить в корзину
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Models.Product? product;
+
+    protected override async Task OnInitializedAsync()
+    {
+        product = await ProductService.GetByIdAsync(Id);
+    }
+
+    private async Task TossToBasket()
+    {
+        if (product == null) return;
+        var customer = await CurrentUser.GetOrCreateGuestKidAsync();
+        await CartService.AddToCartAsync(customer.Id, product.Id);
+        Nav.NavigateTo("/cart");
+    }
+}

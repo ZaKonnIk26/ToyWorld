@@ -1,0 +1,64 @@
+@page "/products"
+@rendermode InteractiveServer
+@inject IProductService ProductService
+@inject ICategoryService CategoryService
+@inject ICartService CartService
+@inject ICurrentUserService CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>Игрушки — ToyWorld</PageTitle>
+
+<h1 class="text-tw text-center mb-4"><i class="bi bi-puzzle-fill"></i> Все игрушки <i class="bi bi-stars text-warning"></i></h1>
+
+<div class="d-flex gap-3 justify-content-center mb-5 flex-wrap">
+    <button class="tw-cat-btn @(KidCatId == 0 ? "active" : "")" @onclick="@(() => PickCategory(0))">🌈 Все</button>
+    @if (toyCats != null) {
+        var icons = new[] { "🧩", "👧", "🚗" };
+        var i = 0;
+        foreach (var c in toyCats) {
+            var icon = icons[i % icons.Length];
+            <button class="tw-cat-btn @(KidCatId == c.Id ? "active" : "")" @onclick="@(() => PickCategory(c.Id))">@icon @c.Name</button>
+            i++;
+        }
+    }
+</div>
+
+@if (toys == null) { <p class="text-center"><em>Загрузка...</em></p> }
+else if (!toys.Any()) { <div class="alert alert-info">Игрушки не найдены 😢</div> }
+else
+{
+    <div class="row g-4">
+        @{ var idx = 0; }
+        @foreach (var p in toys)
+        {
+            var rot = (idx % 4) switch { 0 => "-1.5deg", 1 => "1deg", 2 => "-0.5deg", _ => "1.5deg" };
+            <div class="col-md-6 col-lg-4">
+                <div class="tw-toy-card h-100" style="transform: rotate(@rot);">
+                    @if (!string.IsNullOrEmpty(p.ImageUrl)) { <img src="@p.ImageUrl" class="tw-toy-img w-100" /> }
+                    <div class="p-3">
+                        <span class="tw-cat-tag">@p.Category?.Name</span>
+                        <h5 class="mt-2 mb-1 text-tw">@p.Name</h5>
+                        <p class="small text-muted">@p.Description</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong class="fs-4 text-warning">@p.Price.ToString("N0") ₽ ✨</strong>
+                            <button class="btn btn-warning btn-sm fw-bold" @onclick="() => TossToBasket(p.Id)" disabled="@(p.Stock == 0)">🎁 В корзинку</button>
+                        </div>
+                        <a class="d-block text-center mt-2 small text-tw" href="@($"/products/{p.Id}")">подробнее →</a>
+                    </div>
+                </div>
+            </div>
+            idx++;
+        }
+    </div>
+}
+
+@code {
+    private IEnumerable<Models.Product>? toys;
+    private IEnumerable<Models.Category>? toyCats;
+    private int KidCatId { get; set; } = 0;
+
+    protected override async Task OnInitializedAsync() { toyCats = await CategoryService.GetAllAsync(); await LoadToys(); }
+    private async Task PickCategory(int catId) { KidCatId = catId; await LoadToys(); }
+    private async Task LoadToys() { toys = KidCatId == 0 ? await ProductService.GetAllAsync() : await ProductService.GetByCategoryAsync(KidCatId); }
+    private async Task TossToBasket(int id) { var c = await CurrentUser.GetOrCreateGuestKidAsync(); await CartService.AddToCartAsync(c.Id, id); Nav.NavigateTo("/cart"); }
+}

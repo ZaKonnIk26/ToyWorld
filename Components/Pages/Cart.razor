@@ -1,0 +1,111 @@
+@page "/cart"
+@rendermode InteractiveServer
+@inject ICartService CartService
+@inject ICurrentUserService CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>Корзина — ToyWorld</PageTitle>
+
+<h1 class="mb-4"><i class="bi bi-cart"></i> Корзина</h1>
+
+@if (items == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!items.Any())
+{
+    <div class="alert alert-info">
+        Корзина пуста. <a href="/products">Перейти к товарам</a>.
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Товар</th>
+                    <th>Цена</th>
+                    <th style="width: 180px">Количество</th>
+                    <th>Сумма</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in items)
+                {
+                    <tr>
+                        <td>
+                            @if (!string.IsNullOrEmpty(item.Product.ImageUrl))
+                            {
+                                <img src="@item.Product.ImageUrl" style="width: 60px; height: 60px; object-fit: cover;" class="rounded me-2" />
+                            }
+                            @item.Product.Name
+                        </td>
+                        <td>@item.Product.Price.ToString("N0") ₽</td>
+                        <td>
+                            <div class="input-group input-group-sm">
+                                <button class="btn btn-outline-secondary" @onclick="() => ChangeQty(item.Id, item.Quantity - 1)">−</button>
+                                <input type="number" class="form-control text-center" value="@item.Quantity"
+                                       @onchange="@(e => ChangeQty(item.Id, int.Parse(e.Value?.ToString() ?? "1")))" />
+                                <button class="btn btn-outline-secondary" @onclick="() => ChangeQty(item.Id, item.Quantity + 1)">+</button>
+                            </div>
+                        </td>
+                        <td><strong>@((item.Product.Price * item.Quantity).ToString("N0")) ₽</strong></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => Remove(item.Id)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3" class="text-end"><strong>Итого:</strong></td>
+                    <td colspan="2"><h4 class="text-primary mb-0">@total.ToString("N0") ₽</h4></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="d-flex justify-content-between">
+        <a href="/products" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Продолжить покупки
+        </a>
+        <a href="/checkout" class="btn btn-success btn-lg">
+            Оформить заказ <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
+}
+
+@code {
+    private List<Models.CartItem>? items;
+    private decimal total;
+    private int customerId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var customer = await CurrentUser.GetOrCreateGuestKidAsync();
+        customerId = customer.Id;
+        await LoadToys();
+    }
+
+    private async Task LoadToys()
+    {
+        items = (await CartService.GetCartAsync(customerId)).ToList();
+        total = await CartService.GetTotalAsync(customerId);
+    }
+
+    private async Task ChangeQty(int itemId, int qty)
+    {
+        await CartService.UpdateQuantityAsync(itemId, qty);
+        await LoadToys();
+    }
+
+    private async Task Remove(int itemId)
+    {
+        await CartService.RemoveFromCartAsync(itemId);
+        await LoadToys();
+    }
+}
